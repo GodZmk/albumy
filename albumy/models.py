@@ -228,6 +228,7 @@ class Photo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(500))
 
+    # add ml_tags field
     ml_tags = db.Column(db.String(500))
 
     filename = db.Column(db.String(64))

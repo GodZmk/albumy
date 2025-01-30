@@ -156,7 +156,7 @@ def upload():
             ml_tags=' '.join(tags)
         )
 
-
+        # submit the tags
         for name in tags:
             tag = Tag.query.filter_by(name=name).first()
             if tag is None:
