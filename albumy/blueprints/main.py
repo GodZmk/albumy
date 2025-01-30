@@ -12,6 +12,7 @@ from flask import render_template, flash, redirect, url_for, current_app, \
 from flask_login import login_required, current_user
 from sqlalchemy.sql.expression import func
 
+from albumy.azureApi import azureAPI
 from albumy.decorators import confirm_required, permission_required
 from albumy.extensions import db
 from albumy.forms.main import DescriptionForm, TagForm, CommentForm
@@ -125,20 +126,61 @@ def upload():
         f.save(os.path.join(current_app.config['ALBUMY_UPLOAD_PATH'], filename))
         filename_s = resize_image(f, filename, current_app.config['ALBUMY_PHOTO_SIZE']['small'])
         filename_m = resize_image(f, filename, current_app.config['ALBUMY_PHOTO_SIZE']['medium'])
+
+        # get path
+        image_path = os.path.join(current_app.config['ALBUMY_UPLOAD_PATH'], filename)
+
+        user_description = request.form.get('description', '').strip()
+
+        try:
+            # Only call Azure API if no user description provided
+            if not user_description:
+                azure_api = azureAPI()
+                description, tags = azure_api.analyze_image(image_path)
+            else:
+                description = user_description
+                # Still get tags even if description provided
+                azure_api = azureAPI()
+                _, tags = azure_api.analyze_image(image_path)
+        except Exception as e:
+            current_app.logger.error(f'Azure API error: {str(e)}')
+            description = "Image description not available"
+            tags = []
+
         photo = Photo(
             filename=filename,
             filename_s=filename_s,
             filename_m=filename_m,
-            author=current_user._get_current_object()
+            author=current_user._get_current_object(),
+            description=description,
+            ml_tags=' '.join(tags)
         )
+
+
+        for name in tags:
+            tag = Tag.query.filter_by(name=name).first()
+            if tag is None:
+                tag = Tag(name=name)
+                db.session.add(tag)
+                db.session.commit()
+            if tag not in photo.tags:
+                photo.tags.append(tag)
+                db.session.commit()
+
+        flash('Photo uploaded.', 'success')
+        return redirect(url_for('.show_photo', photo_id=photo.id))
+
         db.session.add(photo)
         db.session.commit()
+        flash('Photo uploaded.', 'success')
+        return redirect(url_for('.show_photo', photo_id=photo.id))
     return render_template('main/upload.html')
 
 
 @main_bp.route('/photo/<int:photo_id>')
 def show_photo(photo_id):
     photo = Photo.query.get_or_404(photo_id)
+    print(f"photo {photo_id} description: {photo.description}")
     page = request.args.get('page', 1, type=int)
     per_page = current_app.config['ALBUMY_COMMENT_PER_PAGE']
     pagination = Comment.query.with_parent(photo).order_by(Comment.timestamp.asc()).paginate(page, per_page)
@@ -146,9 +188,11 @@ def show_photo(photo_id):
 
     comment_form = CommentForm()
     description_form = DescriptionForm()
-    tag_form = TagForm()
-
     description_form.description.data = photo.description
+
+    tag_form = TagForm()
+    tag_form.tag.data = photo.ml_tags
+
     return render_template('main/photo.html', photo=photo, comment_form=comment_form,
                            description_form=description_form, tag_form=tag_form,
                            pagination=pagination, comments=comments)
