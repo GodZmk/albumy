@@ -28,6 +28,23 @@ or with Pipenv:
 $ pipenv install --dev
 $ pipenv shell
 ```
+
+## Installation
+
+Before running the application, you need to set up Azure Computer Vision API:
+Create a .env file in the project root:
+```
+$ AZURE_VISION_KEY=your-azure-api-key
+$ AZURE_VISION_ENDPOINT=your-azure-endpoint
+```
+Get Azure Computer Vision API credentials:
+
+Sign up at https://azure.microsoft.com/free/
+* Create a Computer Vision resource
+* Copy your API key and endpoint URL to .env file
+
+## Running
+
 generate fake data then run:
 ```
 $ flask forge
@@ -37,6 +54,7 @@ $ flask run
 Test account:
 * email: `admin@helloflask.com`
 * password: `helloflask`
+
 
 ## License
 
